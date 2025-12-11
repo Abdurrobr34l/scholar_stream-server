@@ -8,7 +8,7 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Middleware
+//* MIDDLEWARE
 app.use(cors());
 app.use(express.json());
 
@@ -24,12 +24,16 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     await client.connect();
+    //* Server(Backened) Connected to DB Console
     console.log("Connected to MongoDB");
 
+    //* ALL DB COLLECTIONS
     const usersCollection = client.db("scholar_streame-DB").collection("users");
 
+    //* Testing Route
     app.get("/", (req, res) => res.send("Server is running!"));
 
+    //* Sending Register User Details to DB (POST)
     app.post("/users", async (req, res) => {
       const user = req.body;
       const existingUser = await usersCollection.findOne({ email: user.email });
@@ -38,7 +42,8 @@ async function run() {
       res.send(result);
     });
 
-    app.listen(port, () => console.log(`Server running on port ${port}`));
+    //* Server Runnning MSG Console
+    app.listen(port, () => console.log(`Server is running on port ${port}`));
   } catch (err) {
     console.error(err);
   }
