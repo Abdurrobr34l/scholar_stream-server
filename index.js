@@ -12,7 +12,7 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-const uri = process.env.MONGODB_URI;
+const uri = process.env.MONGO_DB_URI;
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -29,11 +29,12 @@ async function run() {
 
     //* ALL DB COLLECTIONS
     const usersCollection = client.db("scholar_streame-DB").collection("users");
+    const allScholarshipCollection = client.db("scholar_streame-DB").collection("scholarships");
 
     //* Testing Route
     app.get("/", (req, res) => res.send("Server is running!"));
 
-    //* Sending Register User Details to DB (POST)
+    //* Sending Register User Details to DB (POST) (USER INFO)
     app.post("/users", async (req, res) => {
       const user = req.body;
       const existingUser = await usersCollection.findOne({ email: user.email });
@@ -41,6 +42,17 @@ async function run() {
       const result = await usersCollection.insertOne(user);
       res.send(result);
     });
+
+    //* All Scholarship Data (GET)
+    app.get("/scholarships", async (req, res) => {
+      try {
+        const scholarship = (await allScholarshipCollection.find({}).toArray());
+        res.send(scholarship)
+      }
+      catch (error) {
+        res.status(500).send({ message: "Failed to fetch scholarships data's" });
+      }
+    })
 
     //* Server Runnning MSG Console
     app.listen(port, () => console.log(`Server is running on port ${port}`));
