@@ -46,7 +46,8 @@ async function run() {
     //* All Scholarship Data (GET)
     app.get("/scholarships", async (req, res) => {
       try {
-        const scholarship = (await allScholarshipCollection.find({}).toArray());
+        const scholarship = (await allScholarshipCollection.find({}).sort({ applicationFees: 1 }).toArray()); //*Sorting by fee
+        // const scholarship = (await allScholarshipCollection.find({}).sort({ createdAt: -1 }).toArray()); //*Sorting by created at time
         res.send(scholarship)
       }
       catch (error) {
