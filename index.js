@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 dotenv.config();
 
@@ -43,7 +43,7 @@ async function run() {
       res.send(result);
     });
 
-    //* All Scholarship Data (GET)
+    //* Get All Scholarship Data (GET)
     app.get("/scholarships", async (req, res) => {
       try {
         const scholarship = (await allScholarshipCollection.find({}).sort({ applicationFees: 1 }).toArray()); //*Sorting by fee
@@ -53,7 +53,21 @@ async function run() {
       catch (error) {
         res.status(500).send({ message: "Failed to fetch scholarships data's" });
       }
-    })
+    });
+
+    //* Get Scholarship Data By ID (GET)
+    app.get("/scholarships/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const scholarship = await allScholarshipCollection.findOne({ _id: new ObjectId(id) });
+        if (!scholarship) return res.status(404).send({ message: "Scholarship not found" });
+        // res.send({ ...scholarship, reviews });
+        res.send(scholarship);
+      }
+      catch (error) {
+        res.status(500).send({ message: "Failed to fetch scholarship details" });
+      }
+    });
 
     //* Server Runnning MSG Console
     app.listen(port, () => console.log(`Server is running on port ${port}`));
