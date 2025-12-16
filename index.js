@@ -2,9 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const stripe = require('stripe')(process.env.STRIPE_SECRET_API);
 
 dotenv.config();
+const stripe = require('stripe')(process.env.STRIPE_SECRET_API);
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -37,7 +37,7 @@ async function run() {
     //todo ---------------------------- Testing Route ----------------------------
     app.get("/", (req, res) => res.send("Server is running!"));
 
-    //* Sending Register User Details to DB (POST) (USER INFO)
+    //* Sending Register User Details to DB (POST) (USER INFO) (USER)
     app.post("/users", async (req, res) => {
       const user = req.body;
       const existingUser = await usersCollection.findOne({ email: user.email });
@@ -46,7 +46,18 @@ async function run() {
       res.send(result);
     });
 
-    //* Get All Scholarship Data (GET)
+    //* Get All Users Data (GET) (USER)
+    app.get("/users", async (req, res) => {
+      try {
+        const users = (await usersCollection.find({}).toArray());
+        res.send(users)
+      }
+      catch (error) {
+        res.status(500).send({ message: "Failed to fetch scholarships data's" });
+      }
+    });
+
+    //* Get All Scholarship Data (GET) (SCHOLARSHIP)
     app.get("/scholarships", async (req, res) => {
       try {
         const scholarship = (await allScholarshipCollection.find({}).sort({ applicationFees: 1 }).toArray()); //*Sorting by fee
@@ -58,7 +69,7 @@ async function run() {
       }
     });
 
-    //* Get Scholarship Data By ID (GET)
+    //* Get Scholarship Data By ID (GET) (SCHOLARSHIP)
     app.get("/scholarships/:id", async (req, res) => {
       try {
         const id = req.params.id;
@@ -72,7 +83,7 @@ async function run() {
       }
     });
 
-    //* Get Review Data By ID (GET)
+    //* Get Review Data By ID (GET) (REVIEW)
     app.get("/reviews/:scholarshipId", async (req, res) => {
       const scholarshipId = req.params.scholarshipId;
       try {
