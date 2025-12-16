@@ -70,7 +70,7 @@ async function run() {
       }
     });
 
-    //* Get Scholarship Data By ID (GET)
+    //* Get Review Data By ID (GET)
     app.get("/reviews/:scholarshipId", async (req, res) => {
       const scholarshipId = req.params.scholarshipId;
       try {
