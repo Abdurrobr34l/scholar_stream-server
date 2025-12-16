@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const stripe = require('stripe')(process.env.STRIPE_SECRET_API);
 
 dotenv.config();
 
@@ -27,12 +28,13 @@ async function run() {
     //* Server(Backened) Connected to DB Console
     console.log("Connected to MongoDB");
 
-    //* ALL DB COLLECTIONS
+    //todo ---------------------------- ALL DB COLLECTIONS ----------------------------
     const usersCollection = client.db("scholar_streame-DB").collection("users");
     const allScholarshipCollection = client.db("scholar_streame-DB").collection("scholarships");
     const reviewsCollection = client.db("scholar_streame-DB").collection("reviews");
+    const applicationsCollection = client.db("scholar_streame-DB").collection("applications");
 
-    //* Testing Route
+    //todo ---------------------------- Testing Route ----------------------------
     app.get("/", (req, res) => res.send("Server is running!"));
 
     //* Sending Register User Details to DB (POST) (USER INFO)
@@ -81,6 +83,52 @@ async function run() {
         res.status(500).send({ message: "Failed to fetch scholarship details" });
       }
     });
+
+    //todo ---------------------------- STRIPE ----------------------------
+    app.post("/create-checkout-session", async (req, res) => {
+      try {
+        const { scholarshipId, userId, userName, userEmail, applicationFees } = req.body;
+        const amount = parseInt(applicationFees) * 100;
+
+        const session = await stripe.checkout.sessions.create({
+          line_items: [
+            {
+              price_data: {
+                currency: "usd",
+                unit_amount: amount,
+                product_data: {
+                  name: `Scholarship Application: ${scholarshipId}`
+                }
+              },
+              quantity: 1,
+            },
+          ],
+          customer_email: userEmail,
+          metadata: { scholarshipId, userId },
+          mode: 'payment',
+          success_url: `${process.env.SITE_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${process.env.SITE_DOMAIN}/payment-failed`,
+        });
+
+        // Save application in DB with unpaid status
+        await applicationsCollection.insertOne({
+          scholarshipId,
+          userId,
+          userName,
+          userEmail,
+          applicationFees,
+          paymentStatus: "unpaid",
+          applicationStatus: "pending",
+          applicationDate: new Date(),
+        });
+
+        res.send({ url: session.url });
+      } catch (error) {
+        console.log("Stripe error:", error.message);
+        res.status(400).send({ error: error.message });
+      }
+    });
+
 
     //* Server Runnning MSG Console
     app.listen(port, () => console.log(`Server is running on port ${port}`));
