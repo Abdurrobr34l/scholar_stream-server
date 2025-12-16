@@ -129,6 +129,30 @@ async function run() {
       }
     });
 
+    app.get("/payment-success", async (req, res) => {
+      const sessionId = req.query.session_id;
+      try {
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+        if (session.payment_status === "paid") {
+          const { scholarshipId, userId } = session.metadata;
+
+          // Update application status in DB
+          await applicationsCollection.updateOne(
+            { scholarshipId, userId },
+            { $set: { paymentStatus: "paid", paymentDate: new Date() } }
+          );
+
+          return res.send("Payment Successful! You can close this page.");
+        } else {
+          return res.send("Payment not completed yet.");
+        }
+      } catch (err) {
+        console.log(err);
+        res.status(500).send("Server Error");
+      }
+    });
+
 
     //* Server Runnning MSG Console
     app.listen(port, () => console.log(`Server is running on port ${port}`));
