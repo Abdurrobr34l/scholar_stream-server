@@ -57,6 +57,20 @@ async function run() {
       }
     });
 
+    //* Get user role by email
+    app.get("/users/role/:email", async (req, res) => {
+      console.log("ROLE API HIT:", req.params.email);
+      const email = req.params.email;
+      const user = await usersCollection.findOne({ email });
+
+      if (!user) {
+        return res.status(404).send({ role: "Student" }); // fallback
+      }
+
+      res.send({ role: user.role });
+    });
+
+
     //* Get All Scholarship Data (GET) (SCHOLARSHIP)
     app.get("/scholarships", async (req, res) => {
       try {
