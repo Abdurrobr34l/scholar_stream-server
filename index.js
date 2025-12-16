@@ -30,6 +30,7 @@ async function run() {
     //* ALL DB COLLECTIONS
     const usersCollection = client.db("scholar_streame-DB").collection("users");
     const allScholarshipCollection = client.db("scholar_streame-DB").collection("scholarships");
+    const reviewsCollection = client.db("scholar_streame-DB").collection("reviews");
 
     //* Testing Route
     app.get("/", (req, res) => res.send("Server is running!"));
@@ -63,6 +64,18 @@ async function run() {
         if (!scholarship) return res.status(404).send({ message: "Scholarship not found" });
         // res.send({ ...scholarship, reviews });
         res.send(scholarship);
+      }
+      catch (error) {
+        res.status(500).send({ message: "Failed to fetch scholarship details" });
+      }
+    });
+
+    //* Get Scholarship Data By ID (GET)
+    app.get("/reviews/:scholarshipId", async (req, res) => {
+      const scholarshipId = req.params.scholarshipId;
+      try {
+        const reviews = await reviewsCollection.find({ scholarshipId }).toArray();
+        res.send(reviews);
       }
       catch (error) {
         res.status(500).send({ message: "Failed to fetch scholarship details" });
