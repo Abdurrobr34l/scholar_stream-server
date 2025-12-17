@@ -110,71 +110,202 @@ async function run() {
     });
 
     //todo ---------------------------- STRIPE ----------------------------
+    // app.post("/create-checkout-session", async (req, res) => {
+    //   try {
+    //     const { scholarshipId, userId, userName, userEmail, applicationFees } = req.body;
+    //     const amount = parseInt(applicationFees) * 100;
+
+    //     const session = await stripe.checkout.sessions.create({
+    //       line_items: [
+    //         {
+    //           price_data: {
+    //             currency: "usd",
+    //             unit_amount: amount,
+    //             product_data: {
+    //               name: `Scholarship Application: ${scholarshipId}`
+    //             }
+    //           },
+    //           quantity: 1,
+    //         },
+    //       ],
+    //       customer_email: userEmail,
+    //       metadata: { scholarshipId, userId },
+    //       mode: 'payment',
+    //       // success_url: `${process.env.SITE_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+    //       // cancel_url: `${process.env.SITE_DOMAIN}/payment-failed`,
+    //       success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+    //       cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
+
+    //     });
+
+    //     // Save application in DB with unpaid status
+    //     await applicationsCollection.insertOne({
+    //       scholarshipId,
+    //       userId,
+    //       userName,
+    //       userEmail,
+    //       applicationFees,
+    //       paymentStatus: "unpaid",
+    //       applicationStatus: "pending",
+    //       applicationDate: new Date(),
+    //     });
+
+    //     res.send({ url: session.url });
+    //   } catch (error) {
+    //     console.log("Stripe error:", error.message);
+    //     res.status(400).send({ error: error.message });
+    //   }
+    // });
+
+    // app.get("/payment-success", async (req, res) => {
+    //   const sessionId = req.query.session_id;
+    //   try {
+    //     const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    //     if (session.payment_status === "paid") {
+    //       const { scholarshipId, userId } = session.metadata;
+
+    //       // Update application status in DB
+    //       await applicationsCollection.updateOne(
+    //         { scholarshipId, userId },
+    //         { $set: { paymentStatus: "paid", paymentDate: new Date() } }
+    //       );
+
+    //       return res.send("Payment Successful! You can close this page.");
+    //     } else {
+    //       return res.send("Payment not completed yet.");
+    //     }
+    //   } catch (err) {
+    //     console.log(err);
+    //     res.status(500).send("Server Error");
+    //   }
+    // });
+
     app.post("/create-checkout-session", async (req, res) => {
       try {
         const { scholarshipId, userId, userName, userEmail, applicationFees } = req.body;
-        const amount = parseInt(applicationFees) * 100;
+
+        const amount = Number(applicationFees) * 100;
 
         const session = await stripe.checkout.sessions.create({
+          payment_method_types: ["card"],
           line_items: [
             {
               price_data: {
                 currency: "usd",
                 unit_amount: amount,
                 product_data: {
-                  name: `Scholarship Application: ${scholarshipId}`
-                }
+                  name: "Scholarship Application Fee",
+                },
               },
               quantity: 1,
             },
           ],
+          mode: "payment",
+
           customer_email: userEmail,
-          metadata: { scholarshipId, userId },
-          mode: 'payment',
-          success_url: `${process.env.SITE_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${process.env.SITE_DOMAIN}/payment-failed`,
+
+          metadata: {
+            scholarshipId,
+            userId,
+            userName,
+            userEmail,
+            applicationFees,
+          },
+
+          success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled?session_id={CHECKOUT_SESSION_ID}`,
         });
 
-        // Save application in DB with unpaid status
-        await applicationsCollection.insertOne({
+        res.send({ url: session.url });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Checkout session failed" });
+      }
+    });
+
+    app.get("/payment-success", async (req, res) => {
+      const { session_id } = req.query;
+
+      try {
+        const session = await stripe.checkout.sessions.retrieve(session_id);
+
+        if (session.payment_status !== "paid") {
+          return res.status(400).send({ message: "Payment not completed" });
+        }
+
+        const {
           scholarshipId,
           userId,
           userName,
           userEmail,
           applicationFees,
-          paymentStatus: "unpaid",
-          applicationStatus: "pending",
-          applicationDate: new Date(),
+        } = session.metadata;
+
+        // Prevent duplicate
+        const exists = await applicationsCollection.findOne({
+          scholarshipId,
+          userId,
         });
 
-        res.send({ url: session.url });
+        if (!exists) {
+          await applicationsCollection.insertOne({
+            scholarshipId,
+            userId,
+            userName,
+            userEmail,
+            applicationFees: Number(applicationFees),
+            paymentStatus: "paid",
+            applicationStatus: "submitted",
+            applicationDate: new Date(),
+            paymentDate: new Date(),
+            transactionId: session.payment_intent,
+          });
+        }
+
+        res.send({ message: "Payment successful & application saved" });
       } catch (error) {
-        console.log("Stripe error:", error.message);
-        res.status(400).send({ error: error.message });
+        console.error(error);
+        res.status(500).send({ message: "Payment verification failed" });
       }
     });
 
-    app.get("/payment-success", async (req, res) => {
-      const sessionId = req.query.session_id;
+    app.get("/payment-cancelled", async (req, res) => {
+      const { session_id } = req.query;
+
       try {
-        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        const session = await stripe.checkout.sessions.retrieve(session_id);
 
-        if (session.payment_status === "paid") {
-          const { scholarshipId, userId } = session.metadata;
+        const {
+          scholarshipId,
+          userId,
+          userName,
+          userEmail,
+          applicationFees,
+        } = session.metadata;
 
-          // Update application status in DB
-          await applicationsCollection.updateOne(
-            { scholarshipId, userId },
-            { $set: { paymentStatus: "paid", paymentDate: new Date() } }
-          );
+        const exists = await applicationsCollection.findOne({
+          scholarshipId,
+          userId,
+        });
 
-          return res.send("Payment Successful! You can close this page.");
-        } else {
-          return res.send("Payment not completed yet.");
+        if (!exists) {
+          await applicationsCollection.insertOne({
+            scholarshipId,
+            userId,
+            userName,
+            userEmail,
+            applicationFees: Number(applicationFees),
+            paymentStatus: "unpaid",
+            applicationStatus: "pending",
+            applicationDate: new Date(),
+          });
         }
-      } catch (err) {
-        console.log(err);
-        res.status(500).send("Server Error");
+
+        res.send({ message: "Payment cancelled, application saved as unpaid" });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Payment cancel handling failed" });
       }
     });
 
