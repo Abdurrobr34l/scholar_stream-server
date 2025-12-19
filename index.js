@@ -70,7 +70,6 @@ async function run() {
       res.send({ role: user.role });
     });
 
-
     //* Get All Scholarship Data (GET) (SCHOLARSHIP)
     app.get("/scholarships", async (req, res) => {
       try {
@@ -97,6 +96,18 @@ async function run() {
       }
     });
 
+    //* Get applications by user email (GET) (APPLICATIONS)
+    app.get("/applications/user/:email", async (req, res) => {
+      const email = req.params.email;
+      try {
+        const applications = await applicationsCollection.find({ userEmail: email }).toArray();
+        res.send(applications);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ message: "Failed to fetch user applications" });
+      }
+    });
+
     //* Get Review Data By ID (GET) (REVIEW)
     app.get("/reviews/:scholarshipId", async (req, res) => {
       const scholarshipId = req.params.scholarshipId;
@@ -108,6 +119,19 @@ async function run() {
         res.status(500).send({ message: "Failed to fetch scholarship details" });
       }
     });
+
+    //* Get reviews by user EMAIL (GET) (REVIEW)
+    app.get("/reviews/user/:email", async (req, res) => {
+      const email = req.params.email;
+      try {
+        const reviews = await reviewsCollection.find({ userEmail: email }).toArray();
+        res.send(reviews);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ message: "Failed to fetch user reviews" });
+      }
+    });
+
 
     //todo ---------------------------- STRIPE ----------------------------
     app.post("/create-checkout-session", async (req, res) => {
