@@ -101,7 +101,20 @@ async function run() {
       const email = req.params.email;
       try {
         const applications = await applicationsCollection.find({ userEmail: email }).toArray();
-        res.send(applications);
+
+        const populatedApps = await Promise.all(applications.map(async (app) => {
+          const scholarship = await allScholarshipCollection.findOne({ _id: new ObjectId(app.scholarshipId) });
+          return {
+            ...app,
+            scholarshipName: scholarship?.scholarshipName || "Unknown",
+            universityName: scholarship?.universityName || "Unknown",
+            universityCity: scholarship?.universityCity || "",
+            universityCountry: scholarship?.universityCountry || "",
+            subjectCategory: scholarship?.subjectCategory || "",
+          };
+        }));
+
+        res.send(populatedApps);
       } catch (err) {
         console.error(err);
         res.status(500).send({ message: "Failed to fetch user applications" });
