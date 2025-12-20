@@ -238,64 +238,7 @@ async function run() {
       }
     });
 
-    // app.get("/payment-success", async (req, res) => {
-    //   const { session_id } = req.query;
-
-    //   try {
-    //     const session = await stripe.checkout.sessions.retrieve(session_id);
-
-    //     if (session.payment_status !== "paid") {
-    //       return res.status(400).send({ message: "Payment not completed" });
-    //     }
-
-    //     const {
-    //       scholarshipId,
-    //       userId,
-    //       userName,
-    //       userEmail,
-    //       applicationFees,
-    //     } = session.metadata;
-
-    //     // Fetch scholarship details
-    //     const scholarship = await allScholarshipCollection.findOne({
-    //       _id: new ObjectId(scholarshipId),
-    //     });
-
-    //     const scholarshipName = scholarship?.scholarshipName || "Unknown Scholarship";
-    //     const universityName = scholarship?.universityName || "Unknown University";
-
-    //     // Prevent duplicate application
-    //     const exists = await applicationsCollection.findOne({
-    //       scholarshipId,
-    //       userId,
-    //     });
-
-    //     if (!exists) {
-    //       await applicationsCollection.insertOne({
-    //         scholarshipId,
-    //         userId,
-    //         userName,
-    //         userEmail,
-    //         applicationFees: Number(applicationFees),
-    //         paymentStatus: "paid",
-    //         applicationStatus: "submitted",
-    //         applicationDate: new Date(),
-    //         paymentDate: new Date(),
-    //         transactionId: session.payment_intent,
-    //       });
-    //     }
-
-    //     res.send({
-    //       scholarshipName,
-    //       universityName,
-    //       amountPaid: Number(applicationFees),
-    //     });
-    //   } catch (error) {
-    //     console.error(error);
-    //     res.status(500).send({ message: "Payment verification failed" });
-    //   }
-    // });
-
+    //* Payment Success Route
     app.get("/payment-success", async (req, res) => {
       const { session_id } = req.query;
 
@@ -306,25 +249,43 @@ async function run() {
           return res.status(400).send({ message: "Payment not completed" });
         }
 
-        const { scholarshipId, userId } = session.metadata;
+        const { scholarshipId, userId, userName, userEmail, applicationFees } = session.metadata;
 
-        const result = await applicationsCollection.updateOne(
-          { scholarshipId, userId },
-          {
-            $set: {
-              paymentStatus: "paid",
-              applicationStatus: "submitted",
-              paymentDate: new Date(),
-              transactionId: session.payment_intent,
-            },
-          }
-        );
+        // Fetch scholarship details
+        const scholarship = await allScholarshipCollection.findOne({
+          _id: new ObjectId(scholarshipId),
+        });
 
-        if (result.matchedCount === 0) {
-          return res.status(404).send({ message: "Application not found" });
+        if (!scholarship) {
+          return res.status(404).send({ message: "Scholarship not found" });
         }
 
-        // Redirect back to dashboard so React Query refetches
+        const applicationData = {
+          scholarshipId,
+          userId,
+          userName,
+          userEmail,
+          universityName: scholarship.universityName,
+          scholarshipCategory: scholarship.scholarshipCategory,
+          degree: scholarship.degree,
+          applicationFees: Number(applicationFees),
+          serviceCharge: scholarship.serviceCharge || 0,
+          paymentStatus: "paid",
+          applicationStatus: "submitted",
+          applicationDate: new Date(),
+          paymentDate: new Date(),
+          transactionId: session.payment_intent,
+          feedback: "", // Moderator will add later
+        };
+
+        // Upsert application
+        await applicationsCollection.updateOne(
+          { scholarshipId, userId },
+          { $set: applicationData },
+          { upsert: true }
+        );
+
+        // Redirect back to dashboard
         res.redirect(`${process.env.SITE_DOMAIN}/dashboard/my-applications`);
       } catch (error) {
         console.error(error);
@@ -332,48 +293,49 @@ async function run() {
       }
     });
 
+    //* Payment Cancelled Route
     app.get("/payment-cancelled", async (req, res) => {
       const { session_id } = req.query;
 
       try {
         const session = await stripe.checkout.sessions.retrieve(session_id);
 
-        const {
-          scholarshipId,
-          userId,
-          userName,
-          userEmail,
-          applicationFees,
-        } = session.metadata;
+        const { scholarshipId, userId, userName, userEmail, applicationFees } = session.metadata;
 
-        // Get scholarship name
+        // Fetch scholarship details
         const scholarship = await allScholarshipCollection.findOne({
           _id: new ObjectId(scholarshipId),
         });
 
-        const scholarshipName = scholarship?.scholarshipName || "Unknown Scholarship";
-
-        // Prevent duplicate application
-        const exists = await applicationsCollection.findOne({
-          scholarshipId,
-          userId,
-        });
-
-        if (!exists) {
-          await applicationsCollection.insertOne({
-            scholarshipId,
-            userId,
-            userName,
-            userEmail,
-            applicationFees: Number(applicationFees),
-            paymentStatus: "unpaid",
-            applicationStatus: "pending",
-            applicationDate: new Date(),
-          });
+        if (!scholarship) {
+          return res.status(404).send({ message: "Scholarship not found" });
         }
 
+        const applicationData = {
+          scholarshipId,
+          userId,
+          userName,
+          userEmail,
+          universityName: scholarship.universityName,
+          scholarshipCategory: scholarship.scholarshipCategory,
+          degree: scholarship.degree,
+          applicationFees: Number(applicationFees),
+          serviceCharge: scholarship.serviceCharge || 0,
+          paymentStatus: "unpaid",
+          applicationStatus: "pending",
+          applicationDate: new Date(),
+          feedback: "", // Moderator will add later
+        };
+
+        // Upsert application (prevent duplicates)
+        await applicationsCollection.updateOne(
+          { scholarshipId, userId },
+          { $setOnInsert: applicationData },
+          { upsert: true }
+        );
+
         res.send({
-          scholarshipName,
+          scholarshipName: scholarship.scholarshipName,
           error: "Payment was cancelled by the user",
         });
       } catch (error) {
@@ -384,6 +346,7 @@ async function run() {
         });
       }
     });
+
 
     //* Server Runnning MSG Console
     app.listen(port, () => console.log(`Server is running on port ${port}`));
