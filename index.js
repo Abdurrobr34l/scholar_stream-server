@@ -34,9 +34,10 @@ async function run() {
     const reviewsCollection = client.db("scholar_streame-DB").collection("reviews");
     const applicationsCollection = client.db("scholar_streame-DB").collection("applications");
 
-    //todo ---------------------------- Testing Route ----------------------------
+    //todo ---------------------------- TESTING ROUTES ----------------------------
     app.get("/", (req, res) => res.send("Server is running!"));
 
+    //todo ---------------------------- USER RELATED ROUTES ----------------------------
     //* Sending Register User Details to DB (POST) (USER INFO) (USER)
     app.post("/users", async (req, res) => {
       const user = req.body;
@@ -70,6 +71,7 @@ async function run() {
       res.send({ role: user.role });
     });
 
+    //todo ---------------------------- SCHOLARSHIP RELATED ROUTES ----------------------------
     //* Get All Scholarship Data (GET) (SCHOLARSHIP)
     app.get("/scholarships", async (req, res) => {
       try {
@@ -96,6 +98,7 @@ async function run() {
       }
     });
 
+    //todo ---------------------------- APPLICATIONS RELATED ROUTES ----------------------------
     //* Get applications by user email (GET) (APPLICATIONS)
     app.get("/applications/user/:email", async (req, res) => {
       const email = req.params.email;
@@ -118,6 +121,28 @@ async function run() {
       } catch (err) {
         console.error(err);
         res.status(500).send({ message: "Failed to fetch user applications" });
+      }
+    });
+
+    //* Update Application by ID (PUT) (APPLICATIONS)
+    app.put("/applications/:id", async (req, res) => {
+      const { id } = req.params;
+      const updateData = req.body; // e.g., { degree: "Bachelor", subjectCategory: "Partial Fund" }
+
+      try {
+        const result = await applicationsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updateData }
+        );
+
+        if (result.matchedCount === 0) {
+          return res.status(404).send({ message: "Application not found" });
+        }
+
+        res.send({ message: "Application updated successfully" });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ message: "Failed to update application" });
       }
     });
 
@@ -144,6 +169,7 @@ async function run() {
       res.send({ message: "Application deleted successfully" });
     });
 
+    //todo ---------------------------- REVIEW RELATED ROUTES ----------------------------
     //* Get Review Data By ID (GET) (REVIEW)
     app.get("/reviews/:scholarshipId", async (req, res) => {
       const scholarshipId = req.params.scholarshipId;
@@ -195,6 +221,7 @@ async function run() {
     });
 
     //todo ---------------------------- STRIPE ----------------------------
+    //* Route For Payment
     app.post("/create-checkout-session", async (req, res) => {
       try {
         const { scholarshipId, userId, userName, userEmail, applicationFees } = req.body;
@@ -275,7 +302,7 @@ async function run() {
           applicationDate: new Date(),
           paymentDate: new Date(),
           transactionId: session.payment_intent,
-          feedback: "", // Moderator will add later
+          feedback: "",
         };
 
         // Upsert application
