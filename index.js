@@ -121,6 +121,29 @@ async function run() {
       }
     });
 
+    //* Delete Application (DELETE)
+    app.delete("/applications/:id", async (req, res) => {
+      const { id } = req.params;
+
+      const application = await applicationsCollection.findOne({
+        _id: new ObjectId(id),
+      });
+
+      if (!application) {
+        return res.status(404).send({ message: "Application not found" });
+      }
+
+      // Security rule (assignment-safe)
+      if (application.applicationStatus !== "pending") {
+        return res
+          .status(403)
+          .send({ message: "Cannot delete processed application" });
+      }
+
+      await applicationsCollection.deleteOne({ _id: new ObjectId(id) });
+      res.send({ message: "Application deleted successfully" });
+    });
+
     //* Get Review Data By ID (GET) (REVIEW)
     app.get("/reviews/:scholarshipId", async (req, res) => {
       const scholarshipId = req.params.scholarshipId;
@@ -145,6 +168,31 @@ async function run() {
       }
     });
 
+    //* Update Review (PUT)
+    app.put("/reviews/:id", async (req, res) => {
+      const { id } = req.params;
+      const { reviewComment, ratingPoint } = req.body;
+
+      if (!reviewComment || !ratingPoint) {
+        return res.status(400).send({ message: "Review comment and rating are required" });
+      }
+
+      try {
+        const result = await reviewsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { reviewComment, ratingPoint, updatedAt: new Date() } }
+        );
+
+        if (result.modifiedCount === 0) {
+          return res.status(404).send({ message: "Review not found or not modified" });
+        }
+
+        res.send({ message: "Review updated successfully" });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ message: "Failed to update review" });
+      }
+    });
 
     //todo ---------------------------- STRIPE ----------------------------
     app.post("/create-checkout-session", async (req, res) => {
@@ -190,6 +238,64 @@ async function run() {
       }
     });
 
+    // app.get("/payment-success", async (req, res) => {
+    //   const { session_id } = req.query;
+
+    //   try {
+    //     const session = await stripe.checkout.sessions.retrieve(session_id);
+
+    //     if (session.payment_status !== "paid") {
+    //       return res.status(400).send({ message: "Payment not completed" });
+    //     }
+
+    //     const {
+    //       scholarshipId,
+    //       userId,
+    //       userName,
+    //       userEmail,
+    //       applicationFees,
+    //     } = session.metadata;
+
+    //     // Fetch scholarship details
+    //     const scholarship = await allScholarshipCollection.findOne({
+    //       _id: new ObjectId(scholarshipId),
+    //     });
+
+    //     const scholarshipName = scholarship?.scholarshipName || "Unknown Scholarship";
+    //     const universityName = scholarship?.universityName || "Unknown University";
+
+    //     // Prevent duplicate application
+    //     const exists = await applicationsCollection.findOne({
+    //       scholarshipId,
+    //       userId,
+    //     });
+
+    //     if (!exists) {
+    //       await applicationsCollection.insertOne({
+    //         scholarshipId,
+    //         userId,
+    //         userName,
+    //         userEmail,
+    //         applicationFees: Number(applicationFees),
+    //         paymentStatus: "paid",
+    //         applicationStatus: "submitted",
+    //         applicationDate: new Date(),
+    //         paymentDate: new Date(),
+    //         transactionId: session.payment_intent,
+    //       });
+    //     }
+
+    //     res.send({
+    //       scholarshipName,
+    //       universityName,
+    //       amountPaid: Number(applicationFees),
+    //     });
+    //   } catch (error) {
+    //     console.error(error);
+    //     res.status(500).send({ message: "Payment verification failed" });
+    //   }
+    // });
+
     app.get("/payment-success", async (req, res) => {
       const { session_id } = req.query;
 
@@ -200,54 +306,31 @@ async function run() {
           return res.status(400).send({ message: "Payment not completed" });
         }
 
-        const {
-          scholarshipId,
-          userId,
-          userName,
-          userEmail,
-          applicationFees,
-        } = session.metadata;
+        const { scholarshipId, userId } = session.metadata;
 
-        // Fetch scholarship details
-        const scholarship = await allScholarshipCollection.findOne({
-          _id: new ObjectId(scholarshipId),
-        });
+        const result = await applicationsCollection.updateOne(
+          { scholarshipId, userId },
+          {
+            $set: {
+              paymentStatus: "paid",
+              applicationStatus: "submitted",
+              paymentDate: new Date(),
+              transactionId: session.payment_intent,
+            },
+          }
+        );
 
-        const scholarshipName = scholarship?.scholarshipName || "Unknown Scholarship";
-        const universityName = scholarship?.universityName || "Unknown University";
-
-        // Prevent duplicate application
-        const exists = await applicationsCollection.findOne({
-          scholarshipId,
-          userId,
-        });
-
-        if (!exists) {
-          await applicationsCollection.insertOne({
-            scholarshipId,
-            userId,
-            userName,
-            userEmail,
-            applicationFees: Number(applicationFees),
-            paymentStatus: "paid",
-            applicationStatus: "submitted",
-            applicationDate: new Date(),
-            paymentDate: new Date(),
-            transactionId: session.payment_intent,
-          });
+        if (result.matchedCount === 0) {
+          return res.status(404).send({ message: "Application not found" });
         }
 
-        res.send({
-          scholarshipName,
-          universityName,
-          amountPaid: Number(applicationFees),
-        });
+        // Redirect back to dashboard so React Query refetches
+        res.redirect(`${process.env.SITE_DOMAIN}/dashboard/my-applications`);
       } catch (error) {
         console.error(error);
         res.status(500).send({ message: "Payment verification failed" });
       }
     });
-
 
     app.get("/payment-cancelled", async (req, res) => {
       const { session_id } = req.query;
