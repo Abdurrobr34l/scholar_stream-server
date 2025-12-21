@@ -99,7 +99,50 @@ async function run() {
     });
 
     //todo ---------------------------- APPLICATIONS RELATED ROUTES ----------------------------
-    //* Get applications by user email (GET) (APPLICATIONS)
+    //* Get ALL Application (MODERATOR/ADMIN)
+    app.get("/applications", async (req, res) => {
+      try {
+        const applications = await applicationsCollection.find({}).sort({ applicationDate: -1 }).toArray();
+        res.send(applications);
+      }
+      catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Failed to fetch applications" });
+      }
+    });
+
+    //* Update Application Status (MODERATOR)
+    app.patch("/applications/status/:id", async (req, res) => {
+      const { id } = req.params;
+      const { applicationStatus } = req.body;
+
+      const allowedStatus = ["processing", "completed", "rejected"];
+      if (!allowedStatus.includes(applicationStatus)) {
+        return res.status(400).send({ message: "Invalid status" });
+      }
+
+      const result = await applicationsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { applicationStatus } }
+      );
+
+      res.send({ message: "Status updated" });
+    });
+
+    //* Add / Update Feedback (MODERATOR)
+    app.put("/applications/feedback/:id", async (req, res) => {
+      const { id } = req.params;
+      const { feedback } = req.body;
+
+      const result = await applicationsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { feedback } }
+      );
+
+      res.send({ message: "Feedback updated" });
+    });
+
+    //* Get Application by user email (STUDENT)
     app.get("/applications/user/:email", async (req, res) => {
       const email = req.params.email;
       try {
@@ -124,10 +167,10 @@ async function run() {
       }
     });
 
-    //* Update Application by ID (PUT) (APPLICATIONS)
+    //* Update Application by ID (STUDENT)
     app.put("/applications/:id", async (req, res) => {
       const { id } = req.params;
-      const updateData = req.body; // e.g., { degree: "Bachelor", subjectCategory: "Partial Fund" }
+      const updateData = req.body;
 
       try {
         const result = await applicationsCollection.updateOne(
@@ -146,7 +189,7 @@ async function run() {
       }
     });
 
-    //* Delete Application (DELETE)
+    //* Delete Application (STUDENT)
     app.delete("/applications/:id", async (req, res) => {
       const { id } = req.params;
 
@@ -170,7 +213,18 @@ async function run() {
     });
 
     //todo ---------------------------- REVIEW RELATED ROUTES ----------------------------
-    //* Get Review Data By ID (GET) (REVIEW)
+    //* Get ALL Reviews (MODERATOR/ADMIN)
+    app.get("/reviews", async (req, res) => {
+      try {
+        const reviews = await reviewsCollection.find({}).sort({ reviewDate: -1 }).toArray();
+        res.send(reviews);
+      }
+      catch (error) {
+        res.status(500).send({ message: "Failed to fetch reviews" });
+      }
+    });
+
+    //* Get Review Data By ID (REVIEW)
     app.get("/reviews/:scholarshipId", async (req, res) => {
       const scholarshipId = req.params.scholarshipId;
       try {
@@ -182,7 +236,7 @@ async function run() {
       }
     });
 
-    //* Get reviews by user EMAIL (GET) (REVIEW)
+    //* Get Review by user EMAIL (REVIEW)
     app.get("/reviews/user/:email", async (req, res) => {
       const email = req.params.email;
       try {
@@ -194,7 +248,45 @@ async function run() {
       }
     });
 
-    //* Update Review (PUT)
+    //* Add Review (STUDENT)
+    app.post("/reviews", async (req, res) => {
+      const {
+        userId,
+        scholarshipId,
+        scholarshipName,
+        universityName,
+        userName,
+        userEmail,
+        ratingPoint,
+        reviewComment,
+      } = req.body;
+
+      if (!userId || !scholarshipId || !ratingPoint || !reviewComment) {
+        return res.status(400).send({ message: "Missing required fields" });
+      }
+
+      try {
+        const newReview = {
+          userId,
+          scholarshipId,
+          scholarshipName,
+          universityName,
+          userName,
+          userEmail,
+          ratingPoint,
+          reviewComment,
+          reviewDate: new Date(),
+        };
+
+        const result = await reviewsCollection.insertOne(newReview);
+        res.send({ message: "Review added successfully", reviewId: result.insertedId });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ message: "Failed to add review" });
+      }
+    });
+
+    //* Update Review (REVIEW)
     app.put("/reviews/:id", async (req, res) => {
       const { id } = req.params;
       const { reviewComment, ratingPoint } = req.body;
@@ -217,6 +309,24 @@ async function run() {
       } catch (err) {
         console.error(err);
         res.status(500).send({ message: "Failed to update review" });
+      }
+    });
+
+    //* Delete Review (REVIEW)
+    app.delete("/reviews/:id", async (req, res) => {
+      const { id } = req.params;
+
+      try {
+        const review = await reviewsCollection.findOne({ _id: new ObjectId(id) });
+        if (!review) {
+          return res.status(404).send({ message: "Review not found" });
+        }
+
+        await reviewsCollection.deleteOne({ _id: new ObjectId(id) });
+        res.send({ message: "Review deleted successfully" });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ message: "Failed to delete review" });
       }
     });
 
