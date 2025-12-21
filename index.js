@@ -135,6 +135,27 @@ async function run() {
       }
     });
 
+    //* Update Scholarship Data (SCHOLARSHIP)
+    app.patch("/scholarships/:id", async (req, res) => {
+      const { id } = req.params;
+      const updatedData = req.body;
+
+      await allScholarshipCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: updatedData }
+      );
+
+      res.send({ message: "Scholarship updated successfully" });
+    });
+
+    //* Delete Scholarship Data (SCHOLARSHIP)
+    app.delete("/scholarships/:id", async (req, res) => {
+      const { id } = req.params;
+
+      await allScholarshipCollection.deleteOne({ _id: new ObjectId(id) });
+      res.send({ message: "Scholarship deleted successfully" });
+    });
+    
     //todo ---------------------------- APPLICATIONS RELATED ROUTES ----------------------------
     //* Get ALL Application (MODERATOR/ADMIN)
     app.get("/applications", async (req, res) => {
