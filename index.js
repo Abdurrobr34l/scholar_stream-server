@@ -399,6 +399,60 @@ async function run() {
       }
     });
 
+    //todo ---------------------------- ANALYTICS RELATED ROUTES ----------------------------
+    //* Admin Analytics Stats
+    app.get("/admin-stats", async (req, res) => {
+      try {
+        const totalUsers = await usersCollection.countDocuments();
+        const totalScholarships = await allScholarshipCollection.countDocuments();
+
+        const payments = await applicationsCollection
+          .aggregate([
+            {
+              $group: {
+                _id: null,
+                totalFees: {
+                  $sum: {
+                    $add: ["$applicationFees", "$serviceCharge"],
+                  },
+                },
+              },
+            },
+          ])
+          .toArray();
+
+        const totalFeesCollected = payments[0]?.totalFees || 0;
+
+        res.send({
+          totalUsers,
+          totalScholarships,
+          totalFeesCollected,
+        });
+      } catch (error) {
+        res.status(500).send({ message: "Failed to load admin stats" });
+      }
+    });
+
+    //* Applications By Scholarship Category
+    app.get("/analytics/applications-by-category", async (req, res) => {
+      try {
+        const result = await applicationsCollection
+          .aggregate([
+            {
+              $group: {
+                _id: "$scholarshipCategory",
+                count: { $sum: 1 },
+              },
+            },
+          ])
+          .toArray();
+
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to load analytics data" });
+      }
+    });
+
     //todo ---------------------------- STRIPE ----------------------------
     //* Route For Payment
     app.post("/create-checkout-session", async (req, res) => {
