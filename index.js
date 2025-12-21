@@ -120,15 +120,53 @@ async function run() {
       res.send({ message: "Scholarship added successfully", id: result.insertedId });
     });
 
-    //* Get All Scholarship Data (GET) (SCHOLARSHIP)
+    //* Get All Scholarship with search, filter, sort, pagination (SCHOLARSHIP)
     app.get("/scholarships", async (req, res) => {
       try {
-        // const scholarship = (await allScholarshipCollection.find({}).sort({ applicationFees: 1 }).toArray()); //*Sorting by fee
-        const scholarship = (await allScholarshipCollection.find({}).sort({ createdAt: -1 }).toArray()); //*Sorting by created at time
-        res.send(scholarship)
-      }
-      catch (error) {
-        res.status(500).send({ message: "Failed to fetch scholarships data's" });
+        const { search, category, country, sortBy, order, page, limit } = req.query;
+
+        const query = {};
+
+        if (search) {
+          query.$or = [
+            { scholarshipName: { $regex: search, $options: "i" } },
+            { universityName: { $regex: search, $options: "i" } },
+            { degree: { $regex: search, $options: "i" } },
+          ];
+        }
+
+        if (category) query.scholarshipCategory = category;
+        if (country) query.universityCountry = country;
+
+        let sortQuery = {};
+        if (sortBy) {
+          sortQuery[sortBy] = order === "asc" ? 1 : -1;
+        } else {
+          sortQuery = { createdAt: -1 }; // default newest first
+        }
+
+        const pageNum = parseInt(page) || 1;
+        const pageLimit = parseInt(limit) || 10;
+        const skip = (pageNum - 1) * pageLimit;
+
+        const totalDocs = await allScholarshipCollection.countDocuments(query);
+
+        const scholarships = await allScholarshipCollection
+          .find(query)
+          .sort(sortQuery)
+          .skip(skip)
+          .limit(pageLimit)
+          .toArray();
+
+        res.send({
+          total: totalDocs,
+          page: pageNum,
+          limit: pageLimit,
+          scholarships,
+        });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Failed to fetch scholarships" });
       }
     });
 
