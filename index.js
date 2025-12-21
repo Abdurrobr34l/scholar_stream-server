@@ -58,7 +58,7 @@ async function run() {
       }
     });
 
-    //* Get user role by email
+    //* Get user role by email (ALL)
     app.get("/users/role/:email", async (req, res) => {
       // console.log("ROLE API HIT:", req.params.email);
       const email = req.params.email;
@@ -69,6 +69,43 @@ async function run() {
       }
 
       res.send({ role: user.role });
+    });
+
+    //* Change user role (ADMIN)
+    app.patch("/users/role/:id", async (req, res) => {
+      const { id } = req.params;
+      const { role } = req.body;
+
+      const allowedRoles = ["Student", "Moderator", "Admin"];
+      if (!allowedRoles.includes(role)) {
+        return res.status(400).send({ message: "Invalid role" });
+      }
+
+      const result = await usersCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { role } }
+      );
+
+      res.send({ message: "Role updated successfully" });
+    });
+
+    //* Delete user (ADMIN)
+    app.delete("/users/:id", async (req, res) => {
+      const { id } = req.params;
+
+      const user = await usersCollection.findOne({ _id: new ObjectId(id) });
+
+      if (!user) {
+        return res.status(404).send({ message: "User not found" });
+      }
+
+      // Optional safety (recommended)
+      if (user.role === "Admin") {
+        return res.status(403).send({ message: "Cannot delete admin" });
+      }
+
+      await usersCollection.deleteOne({ _id: new ObjectId(id) });
+      res.send({ message: "User deleted successfully" });
     });
 
     //todo ---------------------------- SCHOLARSHIP RELATED ROUTES ----------------------------
