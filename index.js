@@ -109,11 +109,22 @@ async function run() {
     });
 
     //todo ---------------------------- SCHOLARSHIP RELATED ROUTES ----------------------------
+    //* Add Scholarship (ADMIN)
+    app.post("/scholarships", async (req, res) => {
+      const scholarship = {
+        ...req.body,
+        createdAt: new Date(),
+      };
+
+      const result = await allScholarshipCollection.insertOne(scholarship);
+      res.send({ message: "Scholarship added successfully", id: result.insertedId });
+    });
+
     //* Get All Scholarship Data (GET) (SCHOLARSHIP)
     app.get("/scholarships", async (req, res) => {
       try {
-        const scholarship = (await allScholarshipCollection.find({}).sort({ applicationFees: 1 }).toArray()); //*Sorting by fee
-        // const scholarship = (await allScholarshipCollection.find({}).sort({ createdAt: -1 }).toArray()); //*Sorting by created at time
+        // const scholarship = (await allScholarshipCollection.find({}).sort({ applicationFees: 1 }).toArray()); //*Sorting by fee
+        const scholarship = (await allScholarshipCollection.find({}).sort({ createdAt: -1 }).toArray()); //*Sorting by created at time
         res.send(scholarship)
       }
       catch (error) {
@@ -155,7 +166,7 @@ async function run() {
       await allScholarshipCollection.deleteOne({ _id: new ObjectId(id) });
       res.send({ message: "Scholarship deleted successfully" });
     });
-    
+
     //todo ---------------------------- APPLICATIONS RELATED ROUTES ----------------------------
     //* Get ALL Application (MODERATOR/ADMIN)
     app.get("/applications", async (req, res) => {
