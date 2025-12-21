@@ -103,7 +103,7 @@ async function run() {
     app.get("/applications/user/:email", async (req, res) => {
       const email = req.params.email;
       try {
-        const applications = await applicationsCollection.find({ userEmail: email }).toArray();
+        const applications = await applicationsCollection.find({ userEmail: email }).sort({ applicationDate: -1 }).toArray();
 
         const populatedApps = await Promise.all(applications.map(async (app) => {
           const scholarship = await allScholarshipCollection.findOne({ _id: new ObjectId(app.scholarshipId) });
